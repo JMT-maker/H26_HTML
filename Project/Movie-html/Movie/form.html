@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>영화 후기</title>
+<style>
+    body { 
+        background-color: #121212; 
+        color: #ffffff; 
+        font-family: sans-serif; 
+        max-width: 600px; 
+        margin: 0 auto; /* 핵심: 화면 중앙 정렬 */
+        padding: 50px 20px; 
+    }
+    
+    form { 
+        background: #1e1e1e; 
+        padding: 30px; 
+        border-radius: 15px; 
+        border: 1px solid #333; 
+    }
+    
+    label { display: block; margin-top: 15px; font-weight: bold; }
+    input, select, textarea { 
+        width: 100%; 
+        padding: 12px; 
+        margin-top: 8px; 
+        background: #121212; 
+        border: 1px solid #333; 
+        color: white; 
+        border-radius: 5px; 
+        box-sizing: border-box; 
+    }
+    button { 
+        background: #e50914; 
+        color: white; 
+        border: none; 
+        padding: 15px 30px; 
+        border-radius: 5px; 
+        margin-top: 20px; 
+        width: 100%; 
+        cursor: pointer; 
+        font-weight: bold; 
+    }
+    a { color: #aaa; text-decoration: none; display: block; text-align: center; margin-top: 20px; }
+</style>
+</head>
+<body>
+    <h2>영화 후기 작성</h2>
+    <form>
+        <label>이름: <input type="text"></label>
+        <label>영화: <select><option>기생충</option><option>겟아웃</option></select></label>
+        <label>후기: <textarea rows="5"></textarea></label>
+        <button type="submit">등록</button>
+    </form>
+    <br><a href="../index.html" style="color:#aaa;">메인으로 돌아가기</a>
+</body>
+</html>

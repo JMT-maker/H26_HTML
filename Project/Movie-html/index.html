@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>영화 소개 사이트</title>
+    <style>
+    /* 전체 배경을 다크 모드로 */
+    body { 
+        background-color: #121212; 
+        color: #fff; 
+        font-family: 'Pretendard', sans-serif; 
+        /* 핵심: 화면 전체에서 가운데로 정렬 */
+        margin: 0 auto; 
+        max-width: 900px; /* 너무 넓어지지 않게 최대 폭 제한 */
+        padding: 50px 20px; 
+    }
+    
+    h1 { 
+        color: #e50914; 
+        text-align: center; /* 제목 중앙 정렬 */
+        padding-bottom: 20px;
+        border-bottom: 2px solid #333;
+    }
+
+    /* 영화 카드들 감싸기 */
+    .container {
+        display: flex;
+        justify-content: center; /* 카드들을 가로로 중앙 정렬 */
+        gap: 40px;
+        flex-wrap: wrap;
+    }
+
+    section { 
+        background: #1e1e1e; 
+        width: 300px; 
+        padding: 20px; 
+        border-radius: 15px; 
+        border: 1px solid #333;
+        text-align: center;
+    }
+
+    img { border-radius: 10px; margin-bottom: 15px; width: 200px; }
+    
+    a { 
+        color: #fff; 
+        text-decoration: none; 
+        font-weight: bold; 
+        background: #e50914; 
+        padding: 10px 20px; 
+        border-radius: 5px; 
+        display: inline-block; 
+        margin-top: 15px; 
+    }
+</style>
+</head>
+<body>
+    <h1>🎬 영화 소개 메인 페이지</h1>
+    
+    <div class="container">
+        <section>
+            <h2>기생충</h2>
+            <img src="Images/기생충.webp.webp" alt="기생충 포스터">
+            <br><a href="Movie/movie01.html">상세 정보 보기</a>
+        </section>
+        
+        <section>
+            <h2>겟아웃</h2>
+            <img src="Images/Get-Out.webp.webp" alt="겟아웃 포스터">
+            <br><a href="Movie/movie02.html">상세 정보 보기</a>
+        </section>
+    </div>
+
+    <div style="text-align: center; margin-top: 40px;">
+        <a href="Movie/form.html" style="background:#444;">후기 남기러 가기</a>
+    </div>
+</body>
+</html>
