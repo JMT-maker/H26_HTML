@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스와이프 벽돌깨기</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+            font-family: sans-serif;
+            touch-action: none; /* 모바일 새로고침 방지 */
+        }
+        #game-container {
+            position: relative;
+            margin-top: 15px;
+        }
+        canvas {
+            background-color: #111;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+            display: block;
+            cursor: crosshair;
+        }
+        #ui {
+            display: flex;
+            justify-content: space-between;
+            width: 400px;
+            margin-top: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .ui-item {
+            flex: 1;
+            text-align: center;
+        }
+        .ui-item:first-child { text-align: left; }
+        .ui-item:last-child { text-align: right; }
+
+        /* 랭킹 보드 스타일 */
+        #ranking-board {
+            width: 360px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ffcc00;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        #ranking-board h3 {
+            margin: 0 0 15px 0;
+            color: #ffcc00;
+        }
+        #ranking-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+        }
+        #ranking-list li {
+            padding: 5px 10px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            justify-content: space-between;
+        }
+        #ranking-list li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div class="ui-item">Score: <span id="scoreDisplay" style="color: #ffaa00;">0</span></div>
+        <div class="ui-item">Level: <span id="levelDisplay">1</span></div>
+        <div class="ui-item">Balls: <span id="ballDisplay">1</span></div>
+    </div>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+    </div>
+
+    <!-- 랭킹 표시판 -->
+    <div id="ranking-board">
+        <h3>🏆 TOP 5 RANKING</h3>
+        <ul id="ranking-list">
+            <!-- 자바스크립트에서 동적으로 삽입 -->
+        </ul>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const levelDisplay = document.getElementById('levelDisplay');
+    const ballDisplay = document.getElementById('ballDisplay');
+    const rankingList = document.getElementById('ranking-list');
+
+    // 게임 설정
+    const width = canvas.width;
+    const height = canvas.height;
+    const ballRadius = 6;
+    const ballSpeed = 12; 
+    const rows = 9;
+    const cols = 7;
+    const brickWidth = width / cols;
+    const brickHeight = 40;
+
+    // 게임 상태 변수
+    let state = 'IDLE'; 
+    let score = 0;
+    let level = 1;
+    let totalBalls = 1;
+    let balls = [];
+    let bricks = [];
+    let floatingTexts = []; 
+    let startX = width / 2;
+    const startY = height - ballRadius;
+    let nextStartX = startX;
+    let firstBallLanded = false;
+    
+    // 조준 & 콤보 변수
+    let shootAngle = 0;
+    let ballsToShoot = 0;
+    let shootFrame = 0;
+    let comboCount = 0;
+
+    class FloatingText {
+        constructor(x, y, text, color) {
+            this.x = x;
+            this.y = y;
+            this.text = text;
+            this.color = color;
+            this.life = 60;
+            this.opacity = 1;
+        }
+        update() {
+            this.y -= 1;
+            this.life--;
+            this.opacity = this.life / 60;
+        }
+        draw() {
+            if (this.life <= 0) return;
+            ctx.save();
+            ctx.globalAlpha = this.opacity;
+            ctx.fillStyle = this.color;
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(this.text, this.x, this.y);
+            ctx.restore();
+        }
+    }
+
+    class Ball {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.dx = 0;
+            this.dy = 0;
+            this.active = false;
+        }
+        update() {
+            if (!this.active) return;
+            this.x += this.dx;
+            this.y += this.dy;
+
+            if (this.x - ballRadius < 0 || this.x + ballRadius > width) {
+                this.dx = -this.dx;
+                this.x = this.x - ballRadius < 0 ? ballRadius : width - ballRadius;
+            }
+            if (this.y - ballRadius < 0) {
+                this.dy = -this.dy;
+                this.y = ballRadius;
+            }
+            if (this.y + ballRadius >= height) {
+                this.active = false;
+                this.y = startY;
+                if (!firstBallLanded) {
+                    firstBallLanded = true;
+                    nextStartX = this.x; 
+                } else {
+                    this.x = nextStartX; 
+                }
+            }
+        }
+        draw() {
+            if (!this.active && state === 'PLAYING') return; 
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffcc00'; 
+            ctx.fill();
+            ctx.closePath();
+        }
+    }
+
+    class Brick {
+        constructor(col, row, health) {
+            this.col = col;
+            this.row = row;
+            this.x = col * brickWidth;
+            this.y = row * brickHeight;
+            this.w = brickWidth;
+            this.h = brickHeight;
+            this.health = health;
+            this.padding = 2;
+        }
+        draw() {
+            if (this.health <= 0) return;
+            let lightness = Math.max(25, 80 - (this.health * 1.5));
+            ctx.fillStyle = `hsl(0, 100%, ${lightness}%)`; 
+            ctx.fillRect(this.x + this.padding, this.y + this.padding, this.w - this.padding * 2, this.h - this.padding * 2);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.health, this.x + this.w / 2, this.y + this.h / 2);
+        }
+    }
+
+    function init() {
+        spawnBricks();
+        for(let i=0; i<totalBalls; i++) balls.push(new Ball(startX, startY));
+        updateUI();
+        loadRankings(); // 시작할 때 랭킹 불러오기
+        requestAnimationFrame(gameLoop);
+    }
+
+    function spawnBricks() {
+        for (let c = 0; c < cols; c++) {
+            if (Math.random() > 0.5) {
+                bricks.push(new Brick(c, 1, level));
+            }
+        }
+    }
+
+    function checkCollision(ball, brick) {
+        if (brick.health <= 0) return;
+
+        let testX = ball.x;
+        let testY = ball.y;
+
+        if (ball.x < brick.x) testX = brick.x;
+        else if (ball.x > brick.x + brick.w) testX = brick.x + brick.w;
+        if (ball.y < brick.y) testY = brick.y;
+        else if (ball.y > brick.y + brick.h) testY = brick.y + brick.h;
+
+        let distX = ball.x - testX;
+        let distY = ball.y - testY;
+        let distance = Math.sqrt((distX * distX) + (distY * distY));
+
+        if (distance <= ballRadius) {
+            brick.health--;
+            score += 10; 
+            
+            if (brick.health <= 0) {
+                score += 50; 
+                comboCount++; 
+                
+                if (comboCount >= 2) {
+                    let bonusScore = comboCount * 20; 
+                    score += bonusScore;
+                    
+                    floatingTexts.push(new FloatingText(
+                        brick.x + brick.w / 2, 
+                        brick.y, 
+                        `+${bonusScore} (Bonus)`, 
+                        '#ffdd00'
+                    ));
+                }
+            }
+            updateUI();
+
+            if (Math.abs(distX) > Math.abs(distY)) {
+                ball.dx = -ball.dx;
+            } else {
+                ball.dy = -ball.dy;
+            }
+        }
+    }
+
+    function calculateAimAngle(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        let targetX = clientX - rect.left;
+        let targetY = clientY - rect.top;
+        
+        let dx = targetX - startX;
+        let dy = targetY - startY;
+        
+        shootAngle = Math.atan2(dy, dx);
+    }
+
+    function handleStart(e) {
+        if (state !== 'IDLE') return;
+        state = 'AIMING';
+        calculateAimAngle(e);
+    }
+
+    function handleMove(e) {
+        if (state !== 'AIMING') return;
+        calculateAimAngle(e);
+    }
+
+    function handleEnd() {
+        if (state !== 'AIMING') return;
+        
+        if (shootAngle > -0.05) {
+             state = 'IDLE'; 
+             return;
+        }
+
+        state = 'SHOOTING';
+        ballsToShoot = totalBalls;
+        shootFrame = 0;
+        comboCount = 0; 
+        firstBallLanded = false;
+        
+        balls = [];
+        for(let i=0; i<totalBalls; i++) balls.push(new Ball(startX, startY));
+    }
+
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('touchstart', handleStart);
+    canvas.addEventListener('touchmove', handleMove);
+    window.addEventListener('touchend', handleEnd);
+
+    // 랭킹 저장 함수
+    function saveScore(username, finalScore) {
+        // 기존 랭킹 가져오기 (없으면 빈 배열)
+        let rankings = JSON.parse(localStorage.getItem('brickBreakerRankings')) || [];
+        
+        // 새 기록 추가
+        rankings.push({ name: username, score: finalScore, date: new Date().toLocaleDateString() });
+        
+        // 점수 내림차순 정렬 후 상위 5개만 남기기
+        rankings.sort((a, b) => b.score - a.score);
+        rankings = rankings.slice(0, 5);
+        
+        // 로컬 스토리지에 다시 저장
+        localStorage.setItem('brickBreakerRankings', JSON.stringify(rankings));
+        loadRankings();
+    }
+
+    // 랭킹 화면 표시 함수
+    function loadRankings() {
+        let rankings = JSON.parse(localStorage.getItem('brickBreakerRankings')) || [];
+        rankingList.innerHTML = '';
+        
+        if (rankings.length === 0) {
+            rankingList.innerHTML = `<li style="justify-content: center; color: #888;">아직 등록된 기록이 없습니다.</li>`;
+            return;
+        }
+
+        rankings.forEach((player, index) => {
+            const li = document.createElement('li');
+            // 1등은 특별히 금색으로 표시
+            if(index === 0) li.style.color = '#ffcc00';
+            
+            li.innerHTML = `
+                <span>${index + 1}. ${player.name}</span>
+                <span>${player.score} pts</span>
+            `;
+            rankingList.appendChild(li);
+        });
+    }
+
+    function nextTurn() {
+        level++;
+        totalBalls++; 
+        startX = nextStartX;
+        
+        let gameOver = false;
+        for (let i = bricks.length - 1; i >= 0; i--) {
+            let b = bricks[i];
+            b.row++;
+            b.y = b.row * brickHeight;
+            if (b.y + brickHeight >= height - ballRadius * 2) {
+                gameOver = true;
+            }
+        }
+        
+        if (gameOver) {
+            state = 'GAMEOVER';
+            
+            // 0.1초 뒤 입력창 표시 (캔버스 렌더링이 멈춘 후 뜨도록)
+            setTimeout(() => {
+                let username = prompt(`Game Over!\n최종 점수: ${score}점\n\n이름을 입력하여 랭킹에 등록하세요!`, "플레이어");
+                
+                // 취소를 누르거나 빈칸이면 등록 안 함
+                if (username !== null && username.trim() !== "") {
+                    saveScore(username.trim(), score);
+                }
+                
+                document.location.reload();
+            }, 100);
+            return;
+        }
+
+        spawnBricks();
+        updateUI();
+        state = 'IDLE';
+    }
+
+    function updateUI() {
+        scoreDisplay.innerText = score;
+        levelDisplay.innerText = level;
+        ballDisplay.innerText = totalBalls;
+    }
+
+    function drawAimLine() {
+        if (state === 'AIMING' && shootAngle < 0) {
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            let lineLength = 1000;
+            let endX = startX + Math.cos(shootAngle) * lineLength;
+            let endY = startY + Math.sin(shootAngle) * lineLength;
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.setLineDash([8, 8]); 
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    }
+
+    function gameLoop() {
+        if (state === 'GAMEOVER') return; // 게임오버 시 루프 정지
+
+        ctx.clearRect(0, 0, width, height);
+
+        drawAimLine();
+
+        if (state === 'SHOOTING') {
+            if (shootFrame % 2 === 0 && ballsToShoot > 0) {
+                let ballIndex = totalBalls - ballsToShoot;
+                balls[ballIndex].active = true;
+                balls[ballIndex].dx = Math.cos(shootAngle) * ballSpeed;
+                balls[ballIndex].dy = Math.sin(shootAngle) * ballSpeed;
+                ballsToShoot--;
+            }
+            shootFrame++;
+            if (ballsToShoot === 0) state = 'PLAYING';
+        }
+
+        let allBallsStopped = true;
+        balls.forEach(ball => {
+            ball.update();
+            ball.draw();
+            if (ball.active) allBallsStopped = false;
+        });
+
+        if (state === 'PLAYING' && allBallsStopped) {
+            nextTurn();
+        }
+
+        for (let i = bricks.length - 1; i >= 0; i--) {
+            let brick = bricks[i];
+            if (brick.health <= 0) {
+                bricks.splice(i, 1);
+                continue;
+            }
+            balls.forEach(ball => {
+                if(ball.active) checkCollision(ball, brick);
+            });
+            brick.draw();
+        }
+
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            let text = floatingTexts[i];
+            text.update();
+            text.draw();
+            if (text.life <= 0) {
+                floatingTexts.splice(i, 1);
+            }
+        }
+
+        if (state === 'IDLE' || state === 'AIMING') {
+            ctx.beginPath();
+            ctx.arc(startX, startY, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffcc00'; 
+            ctx.fill();
+            ctx.closePath();
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('x' + totalBalls, startX, startY - 15);
+        }
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    init();
+</script>
+</body>
+</html>
